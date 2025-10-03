@@ -6,8 +6,8 @@ class ControllerHub(Device):
     CTRL = 0xE00C
     def __init__(self, num_pads=2):
         self.num = num_pads
-        self.live = [0]*num_pads        # updated by host
-        self.latched = [0]*num_pads     # visible to CPU
+        self.live = [0]*num_pads        # set by host
+        self.latched = [0]*num_pads     # read by cpu
         self.ctrl = 0
 
     def handles(self, addr):
@@ -19,17 +19,18 @@ class ControllerHub(Device):
         if addr == self.CTRL: return self.ctrl
         return 0
 
+    # called by host
+    def set_state(self, pad_index:int, bits:int):
+        if 0 <= pad_index < self.num:
+            self.live[pad_index] = bits & 0xFF
+
+    # called by cpu to latch manually
     def write8(self, addr, val):
         if addr == self.CTRL:
             self.ctrl = val & 0xFF
             if val & 0x01:               # latch on bit0
                 self.latched[:] = [x & 0xFF for x in self.live]
 
-    # host API
-    def set_state(self, pad_index:int, bits:int):
-        if 0 <= pad_index < self.num:
-            self.live[pad_index] = bits & 0xFF
-
-    # call this from your VBLANK tick if you prefer automatic latching
+    # call from vblank to automatically latch every frame
     def vblank_latch(self):
         self.latched[:] = [x & 0xFF for x in self.live]

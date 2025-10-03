@@ -13,63 +13,58 @@ def run_demo(cpu, bus, ppu_scale=3):
     window = pygame.display.set_mode((SCREEN_W*ppu_scale, SCREEN_H*ppu_scale))
     clock = pygame.time.Clock()
 
-    t = 0 # for PPU TEST
-
     running = True
     while running:
-        # Host input handling (update ControllerHub here if you have one)
+        # TODO: add controller handling
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 print("Quit event")
                 running = False
 
-        # Your CPU budget per frame (deterministic):
-        # Run a reasonable number of CPU steps per frame
         if cpu.running:
-            for _ in range(1000):  # Much more reasonable step count per frame
-                print(f"PC={cpu.pc:04X} DS={cpu.ds} RS={cpu.rs}, op={bus.read8(cpu.pc):02X}", end='\r')
+            for _ in range(1000):  # i.e. 1000 ops per frame
+                # print(f"PC={cpu.pc:04X} DS={cpu.ds} RS={cpu.rs}, op={bus.read8(cpu.pc):02X}", end='\r')
                 cpu.step()
                 if not cpu.running:
                     print("CPU halted")
                     running = False
                     break
 
-        # PPU TEST: move a sprite around
-        move_sprite_x(ppu, 0, 40 + (t % 100))
-        t += 1
-
-        # VBLANK: render and present once per frame
+        # vblank!
         frame_surface = ppu.render_frame()
         if ppu_scale != 1:
             frame_surface = pygame.transform.scale(frame_surface, (SCREEN_W*ppu_scale, SCREEN_H*ppu_scale))
         window.blit(frame_surface, (0,0))
         pygame.display.flip()
-        clock.tick(30)  # 60 FPS
+        clock.tick(30) # cap to 30 fps
 
     pygame.quit()
 
 if __name__ == "__main__":
 
     PRG_ROM = bytes([0x00]*0x4000)
-    # replace the start with a simple program that jumps forever
-    # 0x01 = LIT8
+    # 0x34 = IM1
     # 0x05
-    # 0x01 = LIT8
+    # 0x01 = SYS
+    # 0x10 = trc
+    # 0x34 = IM1
     # 0x02
-    # 0x02 = ADD
-    # 0x30 = JMP rel8
-    # 0xfc = -4
-    PRG_ROM = bytes([0x01, 0x05, 0x01, 0x02, 0x02, 0x30, 0xFB]) + PRG_ROM[7:]
+    # 0x40 = ADD
+    # 0x01 = SYS
+    # 0x10 = trc
+    # 0x54 = HOP rel8
+    # 0xF9 = -6
+    PRG_ROM = bytes([0x34, 0x05, 0x01, 0x10, 0x34, 0x02, 0x40,  0x01, 0x10, 0x54, 0xF9]) + PRG_ROM[11:]
     # dump the rom to a binary file
-    with open("demo_rom.bin", "wb") as f:
-        f.write(PRG_ROM)
+    # with open("demo_rom.bin", "wb") as f:
+    #     f.write(PRG_ROM)
     rom = Rom(0x0000, PRG_ROM)
     ram = Ram(0x8000, 0x2000)         # 8KB
     ppu = PPU()
     init_demo_scene(ppu)
     
     pads = ControllerHub()
-    bus = Bus([rom, ram, pads, ppu])  # later add PPU/APU devices
+    bus = Bus([rom, ram, pads, ppu])
     cpu = CPU(bus)
     cpu.reset(0x0000)
 
